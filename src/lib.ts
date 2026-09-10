@@ -72,6 +72,113 @@ export function nodeStateOf(
   return { live: false, bold: false, label: `Done ${formatDuration(lifespan)}`, color: "gray" };
 }
 
+export type PlannedRow = {
+  text: string;
+  color: "white" | "yellow" | "gray" | "red";
+  bold: boolean;
+};
+
+export const DESC_MAX_LEN = 46;
+
+export function liveFirst<T>(items: T[], isLive: (item: T) => boolean): T[] {
+  return [...items.filter(isLive), ...items.filter((item) => !isLive(item))];
+}
+
+/**
+ * Sidebar rows for the tree rooted at `rootID`. Nodes are placed by parentID
+ * only — status never regroups them, an active agent's children stay attached.
+ * Live (busy/retry) siblings render before finished ones so row-budget
+ * truncation never hides active work.
+ */
+export function planTree(
+  rootID: string,
+  sessions: SessionMeta[],
+  statusOf: (id: string) => string | undefined,
+  tickNow: number,
+  maxRows: number,
+): { rows: PlannedRow[]; totalNodes: number; renderedNodes: number; active: number; done: number } {
+  const rows: PlannedRow[] = [];
+  const rowIsNode: boolean[] = [];
+  let renderedNodes = 0;
+  let truncated = false;
+
+  const isLiveId = (id: string): boolean => {
+    const st = statusOf(id);
+    return st === "busy" || st === "retry";
+  };
+
+  // Mark every node whose subtree contains a live agent, so depth-first
+  // rendering visits those branches before long finished ones.
+  const liveSubtree = new Set<string>();
+  const markLive = (parentID: string): boolean => {
+    let any = false;
+    for (const s of childrenOf(sessions, parentID)) {
+      if (isLiveId(s.id)) {
+        liveSubtree.add(s.id);
+        any = true;
+      }
+      if (markLive(s.id)) {
+        liveSubtree.add(s.id);
+        any = true;
+      }
+    }
+    return any;
+  };
+  markLive(rootID);
+
+  const total = { nodes: 0, active: 0, done: 0 };
+  const count = (parentID: string): void => {
+    for (const s of childrenOf(sessions, parentID)) {
+      total.nodes++;
+      if (isLiveId(s.id)) total.active++;
+      else total.done++;
+      count(s.id);
+    }
+  };
+  count(rootID);
+  const totalNodes = total.nodes;
+
+  const walk = (parentID: string, baseIndent: string): void => {
+    if (truncated) return;
+    const kids = liveFirst(childrenOf(sessions, parentID), (s) => liveSubtree.has(s.id));
+    kids.forEach((s, index) => {
+      if (rows.length + 1 > maxRows) {
+        truncated = true;
+        return;
+      }
+      const state = nodeStateOf(statusOf(s.id), s, tickNow);
+      const isLast = index === kids.length - 1;
+      const branch = isLast ? "└─ " : "├─ ";
+      const continuation = isLast ? "   " : "│  ";
+      rows.push({
+        text: `${baseIndent}${branch}${state.live ? "●" : "✓"} ${s.agent ?? "subagent"} ${state.label}`,
+        color: state.color,
+        bold: state.bold,
+      });
+      rowIsNode.push(true);
+      renderedNodes++;
+      if (s.desc.length > 0 && rows.length < maxRows) {
+        rows.push({
+          text: `${baseIndent}${continuation}  ${truncate(s.desc, DESC_MAX_LEN)}`,
+          color: "gray",
+          bold: false,
+        });
+        rowIsNode.push(false);
+      }
+      walk(s.id, `${baseIndent}${continuation}`);
+    });
+  };
+  walk(rootID, "  ");
+  if (truncated) {
+    while (rows.length > maxRows - 1 && rows.length > 0) {
+      rows.pop();
+      if (rowIsNode.pop() === true) renderedNodes--;
+    }
+    rows.push({ text: `  … ${totalNodes - renderedNodes} more`, color: "gray", bold: false });
+  }
+  return { rows, totalNodes, renderedNodes, active: total.active, done: total.done };
+}
+
 /** Direct children of `parentID`, oldest first. */
 export function childrenOf(sessions: Iterable<SessionMeta>, parentID: string): SessionMeta[] {
   const kids: SessionMeta[] = [];

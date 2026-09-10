@@ -3,14 +3,13 @@ import type { MouseEvent } from "@opentui/core";
 import { MouseButton } from "@opentui/core";
 import { createElement, insert, setProp } from "@opentui/solid";
 import { createSignal } from "solid-js";
-import { childrenOf, nodeStateOf, parseAgent, truncate, type SessionMeta } from "./lib.ts";
+import { liveFirst, nodeStateOf, parseAgent, planTree, truncate, type SessionMeta } from "./lib.ts";
 
 const PLUGIN_ID = "subagent-tree";
 const SIDEBAR_ORDER = 200;
 const REFRESH_INTERVAL_MS = 5000;
 const TICK_INTERVAL_MS = 1000;
-const MAX_NODES = 40;
-const DESC_MAX_LEN = 46;
+const MAX_ROWS = 48;
 const COLLAPSED_KV_KEY = "subagent-tree.collapsed";
 
 type SessionListResult = {
@@ -152,68 +151,16 @@ const tui = async (api: TuiPluginApi): Promise<void> => {
   }
 
   function renderTree(rootID: string, tickNow: number, isCollapsed: boolean): unknown[] {
-    const nodes = collectNodes(rootID);
-    let active = 0;
-    let done = 0;
-    for (const s of nodes) {
-      const st = statusMap.get(s.id);
-      if (st === "busy" || st === "retry") active++;
-      else done++;
-    }
-    const out: unknown[] = [renderHeader(active, done, isCollapsed)];
-    if (isCollapsed) return out;
-
-    if (nodes.length === 0) {
-      out.push(renderMutedLine("  no sub-agents yet"));
-      return out;
-    }
-
-    const renderLevel = (parentID: string, baseIndent: string): void => {
-      const kids = childrenOf(sessions, parentID);
-      kids.forEach((s: SessionMeta, index: number): void => {
-        if (out.length - 1 >= MAX_NODES) return;
-        const isLast = index === kids.length - 1;
-        const branch = isLast ? "└─ " : "├─ ";
-        const continuation = isLast ? "   " : "│  ";
-        const state = stateOf(s, tickNow);
-        const label = s.agent ?? "subagent";
-        out.push(
-          makeText(`${baseIndent}${branch}${state.live ? "●" : "✓"} ${label} ${state.label}`, {
-            fg: state.color,
-            bold: state.bold,
-            selectable: false,
-          }),
-        );
-        if (s.desc.length > 0) {
-          out.push(
-            makeText(`${baseIndent}${continuation}  ${truncate(s.desc, DESC_MAX_LEN)}`, {
-              fg: "gray",
-              selectable: false,
-            }),
-          );
-        }
-        renderLevel(s.id, `${baseIndent}${continuation}`);
-      });
-    };
-    renderLevel(rootID, "  ");
-    return out;
-  }
-
-  function collectNodes(rootID: string): SessionMeta[] {
-    const nodes: SessionMeta[] = [];
-    const walk = (parentID: string): void => {
-      for (const s of childrenOf(sessions, parentID)) {
-        if (nodes.length >= MAX_NODES) return;
-        nodes.push(s);
-        walk(s.id);
-      }
-    };
-    walk(rootID);
-    return nodes;
-  }
-
-  function stateOf(s: SessionMeta, tickNow: number) {
-    return nodeStateOf(statusMap.get(s.id), s, tickNow);
+    const plan = planTree(rootID, sessions, (id) => statusMap.get(id), tickNow, MAX_ROWS);
+    const header = renderHeader(plan.active, plan.done, isCollapsed);
+    if (isCollapsed) return [header];
+    if (plan.totalNodes === 0) return [header, renderMutedLine("  no sub-agents yet")];
+    return [
+      header,
+      ...plan.rows.map((row) =>
+        makeText(row.text, { fg: row.color, bold: row.bold, selectable: false }),
+      ),
+    ];
   }
 
   function renderHeader(activeCount: number, doneCount: number, isCollapsed: boolean): unknown {
