@@ -15,6 +15,7 @@ export type SessionMeta = {
 
 export type NodeState = {
   live: boolean;
+  bold: boolean;
   label: string;
   color: "white" | "yellow" | "gray" | "red";
 };
@@ -65,10 +66,10 @@ export function nodeStateOf(
   session: Pick<SessionMeta, "created" | "updated">,
   tickNow: number,
 ): NodeState {
-  if (status === "busy") return { live: true, label: `Running ${spinnerFrame(tickNow)}`, color: "white" };
-  if (status === "retry") return { live: true, label: "Retry", color: "yellow" };
+  if (status === "busy") return { live: true, bold: true, label: `Running ${spinnerFrame(tickNow)}`, color: "white" };
+  if (status === "retry") return { live: true, bold: true, label: "Retry", color: "yellow" };
   const lifespan = (session.updated ?? Date.now()) - (session.created ?? Date.now());
-  return { live: false, label: `Done ${formatDuration(lifespan)}`, color: "gray" };
+  return { live: false, bold: false, label: `Done ${formatDuration(lifespan)}`, color: "gray" };
 }
 
 /** Direct children of `parentID`, oldest first. */

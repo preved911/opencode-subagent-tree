@@ -154,12 +154,15 @@ const tui = async (api: TuiPluginApi): Promise<void> => {
   function renderTree(rootID: string, tickNow: number, isCollapsed: boolean): unknown[] {
     const nodes = collectNodes(rootID);
     let active = 0;
+    let waiting = 0;
     let done = 0;
     for (const s of nodes) {
-      if (stateOf(s, tickNow).live) active++;
+      const st = statusMap.get(s.id);
+      if (st === "busy") active++;
+      else if (st === "retry") waiting++;
       else done++;
     }
-    const out: unknown[] = [renderHeader(active, done, isCollapsed)];
+    const out: unknown[] = [renderHeader(active, waiting, done, isCollapsed)];
     if (isCollapsed) return out;
 
     if (nodes.length === 0) {
@@ -179,6 +182,7 @@ const tui = async (api: TuiPluginApi): Promise<void> => {
         out.push(
           makeText(`${baseIndent}${branch}${state.live ? "●" : "✓"} ${label} ${state.label}`, {
             fg: state.color,
+            bold: state.bold,
             selectable: false,
           }),
         );
@@ -214,12 +218,13 @@ const tui = async (api: TuiPluginApi): Promise<void> => {
     return nodeStateOf(statusMap.get(s.id), s, tickNow);
   }
 
-  function renderHeader(liveCount: number, doneCount: number, isCollapsed: boolean): unknown {
+  function renderHeader(liveCount: number, waitingCount: number, doneCount: number, isCollapsed: boolean): unknown {
     const chevron = isCollapsed ? "▶" : "▼";
-    let count = "";
-    if (liveCount > 0 && doneCount > 0) count = `(${liveCount} active, ${doneCount} done)`;
-    else if (liveCount > 0) count = `(${liveCount})`;
-    else if (doneCount > 0) count = `(${doneCount} done)`;
+    const parts: string[] = [];
+    if (liveCount > 0) parts.push(`${liveCount} active`);
+    if (waitingCount > 0) parts.push(`${waitingCount} waiting`);
+    if (doneCount > 0) parts.push(`${doneCount} done`);
+    const count = parts.length > 0 ? `(${parts.join(", ")})` : "";
     const handleMouseDown = (event: MouseEvent): void => {
       if (event.button !== MouseButton.LEFT) return;
       event.stopPropagation();

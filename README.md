@@ -80,9 +80,13 @@ remaining title is shown as the row description.
 
 ## UI behavior
 
-- Section header: `▼ Subagents (N active, M done)` — click it (or run
-  `Subagent Tree` / `/subagents-toggle`, bound to `ctrl+x t`) to collapse.
-- Rows are ordered oldest-first per level, the way a graph reads naturally.
+- Section header: `▼ Subagents (1 active, 1 waiting, 2 done)` — zero groups
+  are omitted, click it (or run `Subagent Tree` / `/subagents-toggle`, bound
+  to `ctrl+x t`) to collapse. `active` = OpenCode status `busy`, `waiting` =
+  `retry`, `done` = `idle`.
+- Active rows are **bold white** — the same emphasis as the section header —
+  so running work pops out of the sidebar at a glance; retrying rows are bold
+  yellow; completed rows stay muted gray.
 - More than 40 nodes are truncated with a `… N more` marker.
 - Empty sessions show `no sub-agents yet`.
 - The plugin is read-only: it never mutates sessions and adds nothing to the

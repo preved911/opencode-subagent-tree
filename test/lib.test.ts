@@ -68,16 +68,18 @@ test("truncate: longer than limit gets ellipsis", () => {
 
 const base: SessionMeta = { id: "s1", title: "t", desc: "t", created: 100, updated: 200 };
 
-test("nodeStateOf: busy is live with a spinner label", () => {
+test("nodeStateOf: busy is live, bold, white, with a spinner label", () => {
   const st = nodeStateOf("busy", base, 5_500);
   assert.equal(st.live, true);
+  assert.equal(st.bold, true);
   assert.equal(st.color, "white");
   assert.match(st.label, /^Running/);
 });
 
-test("nodeStateOf: retry is live and yellow", () => {
+test("nodeStateOf: retry is live, bold, yellow", () => {
   const st = nodeStateOf("retry", base, 0);
   assert.equal(st.live, true);
+  assert.equal(st.bold, true);
   assert.equal(st.color, "yellow");
   assert.equal(st.label, "Retry");
 });
@@ -85,6 +87,7 @@ test("nodeStateOf: retry is live and yellow", () => {
 test("nodeStateOf: idle is done with the session lifespan", () => {
   const st = nodeStateOf("idle", base, 999_999);
   assert.equal(st.live, false);
+  assert.equal(st.bold, false);
   assert.equal(st.color, "gray");
   // updated(200) - created(100) = 100ms → "0s"
   assert.equal(st.label, "Done 0s");
@@ -93,6 +96,7 @@ test("nodeStateOf: idle is done with the session lifespan", () => {
 test("nodeStateOf: missing status is treated as done, not live", () => {
   const st = nodeStateOf(undefined, base, 0);
   assert.equal(st.live, false);
+  assert.equal(st.bold, false);
 });
 
 test("childrenOf: filters by parentID and sorts oldest first", () => {
