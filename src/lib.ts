@@ -137,13 +137,12 @@ export function planTree(
   const total = { nodes: 0, active: 0, done: 0, hidden: 0 };
   const count = (parentID: string, depth: number): void => {
     for (const s of childrenOf(sessions, parentID)) {
-      if (depth > maxDepth) {
-        total.hidden++;
-        continue;
+      if (depth > maxDepth) total.hidden++;
+      else {
+        total.nodes++;
+        if (isLiveId(s.id)) total.active++;
+        else total.done++;
       }
-      total.nodes++;
-      if (isLiveId(s.id)) total.active++;
-      else total.done++;
       count(s.id, depth + 1);
     }
   };
@@ -188,7 +187,7 @@ export function planTree(
     }
     rows.push({ text: `  … ${totalNodes - renderedNodes} more`, color: "gray", bold: false });
   }
-  return { rows, totalNodes, renderedNodes, active: total.active, done: total.done };
+  return { rows, totalNodes, renderedNodes, active: total.active, done: total.done, hidden: total.hidden };
 }
 
 /** Direct children of `parentID`, oldest first. */

@@ -188,7 +188,9 @@ test("planTree: maxDepth=1 counts deeper nodes as hidden", () => {
   const plan = planTree("root", sessions, () => "idle", 0, 40, 1);
   assert.equal(plan.totalNodes, 2);
   assert.equal(plan.hidden, 2);
-  assert.equal(plan.rows.length, 2);
+  // 2 node rows + 1 desc row each = 4; no deeper nodes rendered
+  assert.equal(plan.rows.length, 4);
+  assert.equal(plan.rows.filter((r) => /[├└]─/.test(r.text)).length, 2);
   assert.ok(!plan.rows.some((r) => r.text.includes("b-child")));
 
   const full = planTree("root", sessions, () => "idle", 0, 40);
