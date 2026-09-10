@@ -45,7 +45,8 @@ const tui = async (api: TuiPluginApi): Promise<void> => {
     api.kv.set(COLLAPSED_KV_KEY, next);
   };
 
-  const unregisterCommand = api.command.register(() => [
+  // Optional in older plugin typings — degrade silently when unavailable.
+  const unregisterCommand: (() => void) | undefined = api.command?.register(() => [
     {
       title: collapsed() ? "Expand Subagent Tree" : "Collapse Subagent Tree",
       value: "subagent-tree.toggle",
@@ -115,7 +116,7 @@ const tui = async (api: TuiPluginApi): Promise<void> => {
   api.lifecycle.onDispose((): void => {
     clearInterval(tickTimer);
     clearInterval(refreshTimer);
-    unregisterCommand();
+    unregisterCommand?.();
   });
 
   type SubagentTreeSlotMap = {
