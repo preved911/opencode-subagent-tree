@@ -96,7 +96,15 @@ export function planTree(
   statusOf: (id: string) => string | undefined,
   tickNow: number,
   maxRows: number,
-): { rows: PlannedRow[]; totalNodes: number; renderedNodes: number; active: number; done: number } {
+  maxDepth: number = Number.POSITIVE_INFINITY,
+): {
+  rows: PlannedRow[];
+  totalNodes: number;
+  renderedNodes: number;
+  active: number;
+  done: number;
+  hidden: number;
+} {
   const rows: PlannedRow[] = [];
   const rowIsNode: boolean[] = [];
   let renderedNodes = 0;
@@ -126,20 +134,24 @@ export function planTree(
   };
   markLive(rootID);
 
-  const total = { nodes: 0, active: 0, done: 0 };
-  const count = (parentID: string): void => {
+  const total = { nodes: 0, active: 0, done: 0, hidden: 0 };
+  const count = (parentID: string, depth: number): void => {
     for (const s of childrenOf(sessions, parentID)) {
+      if (depth > maxDepth) {
+        total.hidden++;
+        continue;
+      }
       total.nodes++;
       if (isLiveId(s.id)) total.active++;
       else total.done++;
-      count(s.id);
+      count(s.id, depth + 1);
     }
   };
-  count(rootID);
+  count(rootID, 1);
   const totalNodes = total.nodes;
 
-  const walk = (parentID: string, baseIndent: string): void => {
-    if (truncated) return;
+  const walk = (parentID: string, baseIndent: string, depth: number): void => {
+    if (truncated || depth > maxDepth) return;
     const kids = liveFirst(childrenOf(sessions, parentID), (s) => liveSubtree.has(s.id));
     kids.forEach((s, index) => {
       if (rows.length + 1 > maxRows) {
@@ -165,10 +177,10 @@ export function planTree(
         });
         rowIsNode.push(false);
       }
-      walk(s.id, `${baseIndent}${continuation}`);
+      walk(s.id, `${baseIndent}${continuation}`, depth + 1);
     });
   };
-  walk(rootID, "  ");
+  walk(rootID, "  ", 1);
   if (truncated) {
     while (rows.length > maxRows - 1 && rows.length > 0) {
       rows.pop();

@@ -178,6 +178,25 @@ test("planTree: node rows take priority over description rows", () => {
   assert.equal(plan.rows.filter((r) => r.text.includes("…")).length, 1);
 });
 
+test("planTree: maxDepth=1 counts deeper nodes as hidden", () => {
+  const sessions: SessionMeta[] = [
+    mkSession("a", "root", 1, 2),
+    mkSession("b", "root", 3, 4),
+    mkSession("b-child", "b", 5, 6),
+    mkSession("b-grandchild", "b-child", 7, 8),
+  ];
+  const plan = planTree("root", sessions, () => "idle", 0, 40, 1);
+  assert.equal(plan.totalNodes, 2);
+  assert.equal(plan.hidden, 2);
+  assert.equal(plan.rows.length, 2);
+  assert.ok(!plan.rows.some((r) => r.text.includes("b-child")));
+
+  const full = planTree("root", sessions, () => "idle", 0, 40);
+  assert.equal(full.totalNodes, 4);
+  assert.equal(full.hidden, 0);
+  assert.equal(full.rows.filter((r) => /[├└]─/.test(r.text)).length, 4);
+});
+
 test("planTree: a live descendant renders even inside a big finished branch", () => {
   const sessions: SessionMeta[] = [];
   // branch A: done parent with 15 done children, created first

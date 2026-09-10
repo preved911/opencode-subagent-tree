@@ -11,6 +11,7 @@ const REFRESH_INTERVAL_MS = 5000;
 const TICK_INTERVAL_MS = 1000;
 const MAX_ROWS = 48;
 const COLLAPSED_KV_KEY = "subagent-tree.collapsed";
+const SCOPE_KV_KEY = "subagent-tree.scope";
 
 type SessionListResult = {
   data?: Array<{
@@ -29,6 +30,9 @@ const tui = async (api: TuiPluginApi): Promise<void> => {
   const [now, setNow] = createSignal(Date.now());
   const [version, setVersion] = createSignal(0);
   const [collapsed, setCollapsed] = createSignal<boolean>(api.kv.get(COLLAPSED_KV_KEY, false));
+  const [scope, setScope] = createSignal<"direct" | "subtree">(
+    api.kv.get<"direct" | "subtree">(SCOPE_KV_KEY, "direct"),
+  );
   let sessions: SessionMeta[] = [];
   let statusMap = new Map<string, string>();
   let dataAt = 0;
@@ -44,6 +48,12 @@ const tui = async (api: TuiPluginApi): Promise<void> => {
     api.kv.set(COLLAPSED_KV_KEY, next);
   };
 
+  const toggleScope = (): void => {
+    const next = scope() === "direct" ? "subtree" : "direct";
+    setScope(next);
+    api.kv.set(SCOPE_KV_KEY, next);
+  };
+
   // Optional in older plugin typings — degrade silently when unavailable.
   const unregisterCommand: (() => void) | undefined = api.command?.register(() => [
     {
@@ -54,6 +64,14 @@ const tui = async (api: TuiPluginApi): Promise<void> => {
       keybind: "ctrl+x t",
       slash: { name: "subagents-toggle" },
       onSelect: toggleCollapsed,
+    },
+    {
+      title: scope() === "direct" ? "Subagent Tree: show full nested subtree" : "Subagent Tree: direct children only",
+      value: "subagent-tree.scope",
+      description: "Toggle between direct sub-agents (level 1) and the full nested tree",
+      category: "Plugin",
+      slash: { name: "subagents-scope" },
+      onSelect: toggleScope,
     },
   ]);
 
@@ -151,16 +169,21 @@ const tui = async (api: TuiPluginApi): Promise<void> => {
   }
 
   function renderTree(rootID: string, tickNow: number, isCollapsed: boolean): unknown[] {
-    const plan = planTree(rootID, sessions, (id) => statusMap.get(id), tickNow, MAX_ROWS);
+    const maxDepth = scope() === "direct" ? 1 : Number.POSITIVE_INFINITY;
+    const plan = planTree(rootID, sessions, (id) => statusMap.get(id), tickNow, MAX_ROWS, maxDepth);
     const header = renderHeader(plan.active, plan.done, isCollapsed);
     if (isCollapsed) return [header];
     if (plan.totalNodes === 0) return [header, renderMutedLine("  no sub-agents yet")];
-    return [
+    const rows: unknown[] = [
       header,
-      ...plan.rows.map((row) =>
-        makeText(row.text, { fg: row.color, bold: row.bold, selectable: false }),
-      ),
+      ...plan.rows.map((row) => makeText(row.text, { fg: row.color, bold: row.bold, selectable: false })),
     ];
+    if (plan.hidden > 0) {
+      rows.push(
+        renderMutedLine(`  … ${plan.hidden} nested hidden (/subagents-scope for full tree)`),
+      );
+    }
+    return rows;
   }
 
   function renderHeader(activeCount: number, doneCount: number, isCollapsed: boolean): unknown {

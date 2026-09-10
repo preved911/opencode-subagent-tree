@@ -88,6 +88,11 @@ remaining title is shown as the row description.
 - Active rows are **bold white** — the same emphasis as the section header —
   so running work pops out of the sidebar at a glance; retrying rows are bold
   yellow; completed rows stay muted gray.
+- **Scope**: by default the tree shows **direct children** of the current
+  session (level 1 — the same set the `view subagents` panel lists), with a
+  `… N nested hidden` marker when deeper descendants exist. Run
+  `Subagent Tree: show full nested subtree` (or `/subagents-scope`) to switch
+  to the full nested graph; the choice persists per installation.
 - More than 40 nodes are truncated with a `… N more` marker.
 - Empty sessions show `no sub-agents yet`.
 - The plugin is read-only: it never mutates sessions and adds nothing to the
