@@ -3,11 +3,12 @@ import type { MouseEvent } from "@opentui/core";
 import { MouseButton } from "@opentui/core";
 import { createElement, insert, setProp } from "@opentui/solid";
 import { createSignal } from "solid-js";
-import { liveFirst, nodeStateOf, parseAgent, planTree, truncate, type SessionMeta } from "./lib.ts";
+import { parseAgent, planTree, type SessionMeta } from "./lib.ts";
 
 const PLUGIN_ID = "subagent-tree";
 const SIDEBAR_ORDER = 200;
-const REFRESH_INTERVAL_MS = 5000;
+const FALLBACK_REFRESH_MS = 15_000;
+const MIN_REFRESH_GAP_MS = 1_000;
 const TICK_INTERVAL_MS = 1000;
 const MAX_ROWS = 48;
 const COLLAPSED_KV_KEY = "subagent-tree.collapsed";
@@ -37,6 +38,7 @@ const tui = async (api: TuiPluginApi): Promise<void> => {
   let statusMap = new Map<string, string>();
   let dataAt = 0;
   let refreshInFlight = false;
+  let fingerprint = "";
 
   const bumpVersion = (): void => {
     setVersion((value) => value + 1);
@@ -75,9 +77,10 @@ const tui = async (api: TuiPluginApi): Promise<void> => {
     },
   ]);
 
-  const refreshAsync = (): void => {
+  const refreshAsync = (force = false): void => {
     const current = Date.now();
-    if (refreshInFlight || current - dataAt < REFRESH_INTERVAL_MS - 500) return;
+    const minGap = force ? MIN_REFRESH_GAP_MS : FALLBACK_REFRESH_MS - 500;
+    if (refreshInFlight || current - dataAt < minGap) return;
     refreshInFlight = true;
     Promise.all([api.client.session.list({ limit: 100 }), api.client.session.status()])
       .then((results) => {
@@ -104,10 +107,13 @@ const tui = async (api: TuiPluginApi): Promise<void> => {
         for (const [id, st] of Object.entries(statusObj)) {
           if (st && typeof st.type === "string") statuses.set(id, st.type);
         }
+        const next = fingerprintOf(parsed, statuses);
+        const changed = next !== fingerprint;
+        fingerprint = next;
         sessions = parsed;
         statusMap = statuses;
         dataAt = Date.now();
-        bumpVersion();
+        if (changed) bumpVersion();
       })
       .catch((error: unknown) => {
         api.client.app.log({ level: "warn", message: `subagent-tree: refresh failed: ${String(error)}` });
@@ -117,9 +123,38 @@ const tui = async (api: TuiPluginApi): Promise<void> => {
       });
   };
 
-  const refreshTimer: ReturnType<typeof setInterval> = setInterval(refreshAsync, REFRESH_INTERVAL_MS);
+  function fingerprintOf(sessionsIn: SessionMeta[], statuses: Map<string, string>): string {
+    const parts: string[] = [];
+    for (const s of sessionsIn) {
+      if (s.parentID === undefined) continue;
+      parts.push(`${s.id}>${s.parentID}@${s.updated ?? 0}`);
+    }
+    for (const [id, st] of statuses) {
+      if (st !== "idle") parts.push(`${id}=${st}`);
+    }
+    return parts.sort().join("|");
+  }
+
+  // Bus events drive near-real-time refreshes; the interval timer is only a
+  // slow fallback, so unknown event names degrade to less frequent polling.
+  const eventUnsubscribers: Array<() => void> = [];
+  for (const name of ["session.created", "session.updated", "session.deleted", "session.status"]) {
+    try {
+      const off = api.event.on(name, () => refreshAsync(true));
+      if (typeof off === "function") eventUnsubscribers.push(off);
+    } catch (error) {
+      api.client.app.log({ level: "warn", message: `subagent-tree: event ${name} unavailable: ${String(error)}` });
+    }
+  }
+
+  const routeIsSession = (): boolean => api.route.current?.name === "session";
+
+  const refreshTimer: ReturnType<typeof setInterval> = setInterval(() => {
+    if (routeIsSession()) refreshAsync();
+  }, FALLBACK_REFRESH_MS);
 
   const tickTimer: ReturnType<typeof setInterval> = setInterval(() => {
+    if (collapsed() || !routeIsSession()) return;
     let hasLive = false;
     for (const st of statusMap.values()) {
       if (st === "busy" || st === "retry") {
@@ -133,6 +168,7 @@ const tui = async (api: TuiPluginApi): Promise<void> => {
   api.lifecycle.onDispose((): void => {
     clearInterval(tickTimer);
     clearInterval(refreshTimer);
+    for (const off of eventUnsubscribers) off();
     unregisterCommand?.();
   });
 

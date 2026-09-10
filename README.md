@@ -78,6 +78,17 @@ The tree is built by walking children of the current session, so:
 The agent label is parsed from the session title suffix (`(@explore)`); the
 remaining title is shown as the row description.
 
+## Resource usage
+
+The plugin is built to sit idle while nothing happens:
+
+- Refreshes are **event-driven** (session lifecycle bus events) with a 15s
+  fallback poll; a refresh that sees no changes does **not** re-render.
+- The spinner tick only runs while the section is expanded, a session is
+  open, and at least one agent is live.
+- When no session route is open (home screen), no polling happens at all.
+- Rendered output is capped at ~48 rows regardless of tree size.
+
 ## UI behavior
 
 - Section header: `▼ Subagents (1 active, 2 done)` — zero groups are
