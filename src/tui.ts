@@ -154,15 +154,13 @@ const tui = async (api: TuiPluginApi): Promise<void> => {
   function renderTree(rootID: string, tickNow: number, isCollapsed: boolean): unknown[] {
     const nodes = collectNodes(rootID);
     let active = 0;
-    let waiting = 0;
     let done = 0;
     for (const s of nodes) {
       const st = statusMap.get(s.id);
-      if (st === "busy") active++;
-      else if (st === "retry") waiting++;
+      if (st === "busy" || st === "retry") active++;
       else done++;
     }
-    const out: unknown[] = [renderHeader(active, waiting, done, isCollapsed)];
+    const out: unknown[] = [renderHeader(active, done, isCollapsed)];
     if (isCollapsed) return out;
 
     if (nodes.length === 0) {
@@ -218,11 +216,10 @@ const tui = async (api: TuiPluginApi): Promise<void> => {
     return nodeStateOf(statusMap.get(s.id), s, tickNow);
   }
 
-  function renderHeader(liveCount: number, waitingCount: number, doneCount: number, isCollapsed: boolean): unknown {
+  function renderHeader(activeCount: number, doneCount: number, isCollapsed: boolean): unknown {
     const chevron = isCollapsed ? "▶" : "▼";
     const parts: string[] = [];
-    if (liveCount > 0) parts.push(`${liveCount} active`);
-    if (waitingCount > 0) parts.push(`${waitingCount} waiting`);
+    if (activeCount > 0) parts.push(`${activeCount} active`);
     if (doneCount > 0) parts.push(`${doneCount} done`);
     const count = parts.length > 0 ? `(${parts.join(", ")})` : "";
     const handleMouseDown = (event: MouseEvent): void => {

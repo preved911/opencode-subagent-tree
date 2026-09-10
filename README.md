@@ -80,10 +80,11 @@ remaining title is shown as the row description.
 
 ## UI behavior
 
-- Section header: `▼ Subagents (1 active, 1 waiting, 2 done)` — zero groups
-  are omitted, click it (or run `Subagent Tree` / `/subagents-toggle`, bound
-  to `ctrl+x t`) to collapse. `active` = OpenCode status `busy`, `waiting` =
-  `retry`, `done` = `idle`.
+- Section header: `▼ Subagents (1 active, 2 done)` — zero groups are
+  omitted, click it (or run `Subagent Tree` / `/subagents-toggle`, bound
+  to `ctrl+x t`) to collapse. `active` = OpenCode status `busy` or `retry`
+  (they count as active — a queued-but-not-started agent is indistinguishable
+  from `idle`, so no separate "waiting" bucket), `done` = `idle`.
 - Active rows are **bold white** — the same emphasis as the section header —
   so running work pops out of the sidebar at a glance; retrying rows are bold
   yellow; completed rows stay muted gray.
