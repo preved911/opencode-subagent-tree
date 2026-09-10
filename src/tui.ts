@@ -138,7 +138,13 @@ const tui = async (api: TuiPluginApi): Promise<void> => {
   // Bus events drive near-real-time refreshes; the interval timer is only a
   // slow fallback, so unknown event names degrade to less frequent polling.
   const eventUnsubscribers: Array<() => void> = [];
-  for (const name of ["session.created", "session.updated", "session.deleted", "session.status"]) {
+  const eventNames: Parameters<typeof api.event.on>[0][] = [
+    "session.created",
+    "session.updated",
+    "session.deleted",
+    "session.status",
+  ];
+  for (const name of eventNames) {
     try {
       const off = api.event.on(name, () => refreshAsync(true));
       if (typeof off === "function") eventUnsubscribers.push(off);
