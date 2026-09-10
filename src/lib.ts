@@ -76,6 +76,9 @@ export type PlannedRow = {
   text: string;
   color: "white" | "yellow" | "gray" | "red";
   bold: boolean;
+  sessionID?: string;
+  /** 1-based spawn index among all descendants of the root, creation order. */
+  index?: number;
 };
 
 export const DESC_MAX_LEN = 46;
@@ -134,6 +137,22 @@ export function planTree(
   };
   markLive(rootID);
 
+  // Stable spawn numbers: position in creation order across all descendants.
+  const spawnIndex = new Map<string, number>();
+  sessions
+    .filter((s) => {
+      for (let p = s.parentID; p !== undefined; p = parentOf(p)) {
+        if (p === rootID) return true;
+      }
+      return false;
+    })
+    .sort((a, b) => (a.created ?? 0) - (b.created ?? 0) || a.id.localeCompare(b.id))
+    .forEach((s, i) => spawnIndex.set(s.id, i + 1));
+
+  function parentOf(id: string): string | undefined {
+    return sessions.find((s) => s.id === id)?.parentID;
+  }
+
   const total = { nodes: 0, active: 0, done: 0, hidden: 0 };
   const count = (parentID: string, depth: number): void => {
     for (const s of childrenOf(sessions, parentID)) {
@@ -162,9 +181,11 @@ export function planTree(
       const branch = isLast ? "└─ " : "├─ ";
       const continuation = isLast ? "   " : "│  ";
       rows.push({
-        text: `${baseIndent}${branch}${state.live ? "●" : "✓"} ${s.agent ?? "subagent"} ${state.label}`,
+        text: `${baseIndent}${branch}#${spawnIndex.get(s.id)} ${state.live ? "●" : "✓"} ${s.agent ?? "subagent"} ${state.label}`,
         color: state.color,
         bold: state.bold,
+        sessionID: s.id,
+        index: spawnIndex.get(s.id),
       });
       rowIsNode.push(true);
       renderedNodes++;
@@ -173,6 +194,7 @@ export function planTree(
           text: `${baseIndent}${continuation}  ${truncate(s.desc, DESC_MAX_LEN)}`,
           color: "gray",
           bold: false,
+          sessionID: s.id,
         });
         rowIsNode.push(false);
       }

@@ -1,6 +1,6 @@
 {
   "name": "opencode-subagent-tree",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "OpenCode plugin: live sub-agent tree in the TUI sidebar — active/completed sub-agents from the session graph",
   "type": "module",
   "license": "MIT",

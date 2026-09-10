@@ -178,6 +178,24 @@ test("planTree: node rows take priority over description rows", () => {
   assert.equal(plan.rows.filter((r) => r.text.includes("…")).length, 1);
 });
 
+test("planTree: spawn indices follow creation order, rows carry sessionID", () => {
+  const sessions: SessionMeta[] = [
+    mkSession("second", "root", 20, 21),
+    mkSession("first", "root", 10, 11),
+  ];
+  // display is live-first, but numbering follows creation order
+  const plan = planTree("root", sessions, (id) => (id === "second" ? "busy" : "idle"), 5_000, 20);
+  assert.equal(plan.rows.filter((r) => /[├└]─/.test(r.text)).length, 2);
+  const liveRow = plan.rows.find((r) => r.text.includes("Running"));
+  const doneRow = plan.rows.find((r) => r.text.includes("Done"));
+  assert.match(liveRow!.text, /#2 ● explore Running/);
+  assert.match(doneRow!.text, /#1 ✓ explore Done/);
+  assert.equal(liveRow!.sessionID, "second");
+  assert.equal(doneRow!.sessionID, "first");
+  assert.equal(liveRow!.index, 2);
+  assert.equal(doneRow!.index, 1);
+});
+
 test("planTree: maxDepth=1 counts deeper nodes as hidden", () => {
   const sessions: SessionMeta[] = [
     mkSession("a", "root", 1, 2),

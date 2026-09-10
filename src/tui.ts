@@ -176,7 +176,14 @@ const tui = async (api: TuiPluginApi): Promise<void> => {
     if (plan.totalNodes === 0) return [header, renderMutedLine("  no sub-agents yet")];
     const rows: unknown[] = [
       header,
-      ...plan.rows.map((row) => makeText(row.text, { fg: row.color, bold: row.bold, selectable: false })),
+      ...plan.rows.map((row) =>
+        makeText(row.text, {
+          fg: row.color,
+          bold: row.bold,
+          selectable: false,
+          ...(row.sessionID ? { onMouseDown: openSession(row.sessionID) } : {}),
+        }),
+      ),
     ];
     if (plan.hidden > 0) {
       rows.push(
@@ -184,6 +191,18 @@ const tui = async (api: TuiPluginApi): Promise<void> => {
       );
     }
     return rows;
+  }
+
+  function openSession(sessionID: string): (event: MouseEvent) => void {
+    return (event: MouseEvent): void => {
+      if (event.button !== MouseButton.LEFT) return;
+      event.stopPropagation();
+      try {
+        api.route.navigate("session", { sessionID });
+      } catch (error) {
+        api.client.app.log({ level: "warn", message: `subagent-tree: navigate failed: ${String(error)}` });
+      }
+    };
   }
 
   function renderHeader(activeCount: number, doneCount: number, isCollapsed: boolean): unknown {
